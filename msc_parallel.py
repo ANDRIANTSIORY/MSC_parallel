@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# With derived Datatype
+# Using derived Datatype
 
 # Arguments : 
     # 1 - the cluster size 
@@ -12,7 +12,6 @@
 
 
 # In python, the elements of the tensor are  ( T[i,j,k] )_{ijk}
-# The first index represent times, second index represents individuals and third indes represent features
 
 import numpy as np
 from mpi4py import MPI
@@ -25,7 +24,7 @@ import time
 import generate_data as gdata
 
 # Define the different communicators
-# Recall that the number of processes must a multiple of 3. The colors have the same number of processes
+# Recall that the number of processes must a multiple of 3. 
 
 
 # Global communicator
@@ -38,7 +37,7 @@ color = math.floor(  3 * MPI.COMM_WORLD.Get_rank() / MPI.COMM_WORLD.Get_size() )
 colorComm = MPI.COMM_WORLD.Split( color, MPI.COMM_WORLD.Get_rank() )
 
 # R_i
-inter_color =  MPI.COMM_WORLD.Get_rank() % colorComm.Get_size()    # the number of files
+inter_color =  MPI.COMM_WORLD.Get_rank() % colorComm.Get_size()   
 Rcomm = MPI.COMM_WORLD.Split( inter_color, MPI.COMM_WORLD.Get_rank() )
 
 color_rank = colorComm.Get_rank()
@@ -59,21 +58,20 @@ else :
 
 
 # Choose if the power iteration method is used or not
-Rayleigh = False
+Rayleigh = True
 
-
-eps = float(sys.argv[-4])       
+card = int(sys.argv[-6]) 
+eps = (1/(dim-card))**2           #float(sys.argv[-4])       
 gamma = float(sys.argv[-5])
-card = int(sys.argv[-6])
 
 
 
 dim_file = (dim0, int(sys.argv[-2]), int(sys.argv[-1]))
 
-#----Start the timer for data loading--------
+#----Start chrono--------
 t_data_generator = time.time()
 
-# We generate the dataset inside each color 0
+# We generate the dataset inside each process of color 0
 if color == 0 :
     if (color_rank+1) * dim0 <= card:
         data = gdata.Generate_tensor(dim0,dim,k=( dim0,card, card), sigma=gamma) 
@@ -87,6 +85,7 @@ if color == 0 :
 # ---- TIMER ------
 t_data_generator = time.time() - t_data_generator            # End the timer for data loading
 t_data_sharing = time.time()                                # start the timer for data sharing
+t_data_and_computation = time.time()
 
 
 # --------------- Definition of the derived datatype ----------------
@@ -108,7 +107,6 @@ if color == 1:     # To find the cluster among the horizontal slices  (J_0)
     data = np.empty((dim_file[1], dim_file[0], dim_file[2]), dtype='d')
     data = np.ascontiguousarray(data, dtype='d')
     Rcomm.Recv([data,dim_file[0]*dim_file[1]*dim_file[2] ,MPI.DOUBLE], source=0, tag=10)
-    #print(np.array_equal(data1, data))
 
 if color == 2:     # To find the cluster among the lateral slices  (J_2)
     data = np.empty((dim_file[2], dim_file[0], dim_file[1]), dtype='double')
@@ -255,7 +253,7 @@ if color_rank == 0 :
 colorComm.Gatherv([vector, MPI.DOUBLE], [d, sendcountes_d, displacements_d, MPI.DOUBLE], root=0)
 
 
-# Verification of the theorem 1 for each mode
+# Verification of the theorem for each mode
 if color_rank == 0 : 
 
     V_order = d.copy()  
@@ -280,7 +278,10 @@ t_computation = time.time() - t_computation
 
     
 
-t_data_sharing = comm.allreduce(t_data_sharing,op=MPI.MAX)   
+t_data_sharing = comm.allreduce(t_data_sharing,op=MPI.MAX)  
+
+t_data_and_computation = time.time() - t_data_and_computation
+t_data_and_computation = comm.allreduce(t_data_and_computation,op=MPI.MAX) 
 
 
 # Similarity within the cluster and construction of (J_1, J_2, J_3)
@@ -296,7 +297,8 @@ if comm.Get_rank()  == 0:
     real_cluster = [ [i for i in range(card)], [i for i in range(card)], [i for i in range(card)] ]
     rec_rate = f.recovery_rate(cluster, real_cluster)
 
-    res = [card, eps, nbr_processor, d_shape, gamma , rec_rate, similarity, f.r(t_data_generator), f.r(t_data_sharing) ,f.r(t_computation) ]
+    res = [card, eps, nbr_processor, d_shape, gamma , rec_rate, similarity, f.r(t_data_generator), f.r(t_data_sharing) ,f.r(t_computation), f.r(t_data_and_computation)]
+
     if os.path.isfile("./result_datatype.txt"):
         # append the result to the file
         with open('./result_datatype.txt', 'a') as f:
