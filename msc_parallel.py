@@ -114,9 +114,9 @@ if color == 2:     # To find the cluster among the lateral slices  (J_2)
     Rcomm.Recv([data,dim_file[0]*dim_file[1]*dim_file[2] ,MPI.DOUBLE], source=0, tag=20)
 
 
-# The main slice need to be in the frontal slice
-# color 1 look for cluster in the second dimension
-# color 2 look for cluster in the third dimension
+# The main slice needs to be in the frontal slice
+# color 1 looks for cluster in the second dimension
+# color 2 looks for cluster in the third dimension
 if color == 1:
     # Broadcast the dim_file original in each mode
     saveDimFile = dim_file
